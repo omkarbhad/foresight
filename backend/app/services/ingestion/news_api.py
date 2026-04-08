@@ -14,7 +14,7 @@ class NewsAPIService:
     BASE_URL = "https://newsapi.org/v2/everything"
 
     def __init__(self):
-        self.api_key = Config.NEWS_API_KEY
+        self.api_key = Config.get("news_api_key")
 
     @property
     def source_name(self):
@@ -22,7 +22,7 @@ class NewsAPIService:
 
     def fetch_mentions(self, keywords, negative_keywords=None, since=None):
         if not self.api_key:
-            logger.warning("[NewsAPI] API key not configured — set NEWS_API_KEY in .env")
+            logger.warning("[NewsAPI] API key not configured — set NEWS_API_KEY via Settings")
             return []
 
         query = " OR ".join(f'"{kw}"' for kw in keywords)

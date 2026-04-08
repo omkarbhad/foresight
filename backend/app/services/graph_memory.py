@@ -12,7 +12,7 @@ import hashlib
 from typing import Dict, List, Any, Optional
 
 from ..config import Config
-from ..utils.claude_client import ClaudeClient
+from ..utils.llm_client import get_llm_client
 from ..utils.embeddings import generate_embedding, EMBEDDING_DIM
 from ..utils.logger import get_logger
 
@@ -52,7 +52,7 @@ class EntityExtractor:
 
     def _get_client(self):
         if self._client is None:
-            self._client = ClaudeClient()
+            self._client = get_llm_client()
         return self._client
 
     def extract(self, title: str, content: str, role: str = "") -> Dict:

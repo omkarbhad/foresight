@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional, Tuple, List
 from crewai import Agent, LLM
 
 from ..config import Config
-from ..utils.claude_client import ClaudeClient
+from ..utils.llm_client import get_llm_client, get_llm_model_string, get_llm_api_key
 from ..utils.logger import get_logger
 
 logger = get_logger('foresight.simulation')
@@ -218,10 +218,10 @@ def create_agent(
     defn = agent_def or AGENT_DEFS[agent_key]
 
     llm = LLM(
-        model=f"anthropic/{Config.CLAUDE_MODEL_NAME}",
-        api_key=Config.CLAUDE_API_KEY,
+        model=get_llm_model_string(),
+        api_key=get_llm_api_key(),
         temperature=0.7,
-        max_tokens=512,
+        max_tokens=1024,
     )
 
     agent = Agent(
@@ -430,7 +430,7 @@ def expand_agents(
         entities_with_data="\n\n---\n\n".join(entities_desc),
     )
 
-    client = ClaudeClient()
+    client = get_llm_client()
     result = client.chat_json(
         messages=[{"role": "user", "content": prompt}],
         system="You are an expert simulation designer. Return only the requested JSON.",
@@ -594,7 +594,7 @@ def generate_dynamic_agents(
     Returns:
         (agent_defs_dict, influence_outgoing, execution_order)
     """
-    client = ClaudeClient()
+    client = get_llm_client()
 
     budget_hint = ""
     if max_agents:
@@ -613,9 +613,9 @@ def generate_dynamic_agents(
 
     result = client.chat_json(
         messages=[{"role": "user", "content": prompt}],
-        system="You are an expert simulation designer. Return only the requested JSON. Be exhaustive — create every agent the scenario demands.",
+        system="You are an expert simulation designer. Return only the requested JSON. Create 6-10 agents most relevant to the scenario.",
         temperature=0.4,
-        max_tokens=8192,
+        max_tokens=4096,
     )
 
     agents_list = result.get("agents", [])

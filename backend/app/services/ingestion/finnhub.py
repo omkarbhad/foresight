@@ -14,7 +14,7 @@ BASE_URL = "https://finnhub.io/api/v1"
 
 class FinnhubService:
     def __init__(self):
-        self.api_key = Config.FINNHUB_API_KEY
+        self.api_key = Config.get("finnhub_api_key")
 
     @property
     def source_name(self):
@@ -27,7 +27,7 @@ class FinnhubService:
         Also fetches general market news.
         """
         if not self.api_key:
-            logger.warning("[Finnhub] API key not configured — set FINNHUB_API_KEY in .env")
+            logger.warning("[Finnhub] API key not configured — set FINNHUB_API_KEY via Settings")
             return []
 
         if not since:

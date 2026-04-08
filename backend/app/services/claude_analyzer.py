@@ -1,6 +1,6 @@
 """Per-mention Claude analysis: sentiment, crisis score, reach, amplify flag"""
 
-from ..utils.claude_client import ClaudeClient
+from ..utils.llm_client import get_llm_client
 from ..utils.logger import get_logger
 from ..models.mention import Mention
 
@@ -24,7 +24,7 @@ Respond with JSON containing:
 
 def analyze_mention(mention):
     try:
-        client = ClaudeClient()
+        client = get_llm_client()
         result = client.chat_json(
             messages=[{
                 "role": "user",

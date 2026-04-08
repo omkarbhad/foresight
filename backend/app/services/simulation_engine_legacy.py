@@ -9,7 +9,7 @@ import threading
 import copy
 from typing import Dict, List, Any, Optional
 
-from ..utils.claude_client import ClaudeClient
+from ..utils.llm_client import get_llm_client
 from ..utils.logger import get_logger
 from ..models.task import TaskManager, TaskStatus
 from ..models.monitor import Monitor
@@ -69,7 +69,7 @@ def _run_simulation(task_id: str, monitor_id: str, scenario: str, config: Dict):
     )
 
     try:
-        client = ClaudeClient()
+        client = get_llm_client()
         monitor = Monitor.get_by_id(monitor_id)
         brand = monitor.name if monitor else "the brand"
         industry = "technology"  # default; could be derived from monitor keywords

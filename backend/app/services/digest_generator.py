@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime, timedelta
 
-from ..utils.claude_client import ClaudeClient
+from ..utils.llm_client import get_llm_client
 from ..services.trend_analyzer import get_dashboard_stats
 from ..models.mention import Mention
 from ..db import execute_write, execute_query, execute_one
@@ -33,7 +33,7 @@ Keep it professional and actionable, 3-5 paragraphs."""
 
 def generate_digest(monitor_id, monitor_name):
     try:
-        client = ClaudeClient()
+        client = get_llm_client()
 
         period_end = datetime.utcnow()
         period_start = period_end - timedelta(days=1)

@@ -1,6 +1,6 @@
 """What-If prediction engine powered by Claude"""
 
-from ..utils.claude_client import ClaudeClient
+from ..utils.llm_client import get_llm_client
 from ..services.trend_analyzer import get_sentiment_trend, get_volume_by_source, get_dashboard_stats
 from ..models.mention import Mention
 from ..utils.logger import get_logger
@@ -32,7 +32,7 @@ Provide a detailed prediction as JSON:
 
 def predict_scenario(monitor_id, monitor_name, scenario):
     try:
-        client = ClaudeClient()
+        client = get_llm_client()
 
         stats = get_dashboard_stats(monitor_id)
         trend = get_sentiment_trend(monitor_id, days=30)

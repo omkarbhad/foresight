@@ -15,12 +15,15 @@ import uuid
 import shutil
 import threading
 import copy
+import time
 from typing import Dict, List, Any, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from crewai import Crew, Task, Process
+# CrewAI imports kept for create_agent() in crewai_agents.py
+# Agent execution now uses direct LLM calls for speed
 
 from ..config import Config
-from ..utils.claude_client import ClaudeClient
+from ..utils.llm_client import get_llm_client
 from ..utils.logger import get_logger
 from ..models.task import TaskManager, TaskStatus
 from ..models.simulation import Simulation
@@ -206,9 +209,10 @@ def _run_simulation(task_id: str, scenarios: List[str], scenario: str, config: D
         agent_scenario_map: Dict[str, str] = {}
         scenario_map: Dict[int, str] = {}
 
-        # Phase 0: Dynamic Agent Planning
+        # Phase 0: Agent Planning + Data Fetching (IN PARALLEL)
+        # These are independent — run them concurrently to cut startup time in half
         tm.update_task(
-            task_id, message="Analyzing scenario and selecting agents...",
+            task_id, message="Analyzing scenario and fetching data...",
             progress_detail=_update_detail(tm, task_id, phase="planning_agents"),
         )
 
@@ -218,48 +222,99 @@ def _run_simulation(task_id: str, scenarios: List[str], scenario: str, config: D
         execution_order = None
         engine_version = "v4"
 
-        try:
+        # Results containers for parallel work
+        all_scenario_data = {}
+        all_sentiment = {}
+        briefing = ""
+
+        def _do_agent_generation():
+            """Generate agents (LLM call)."""
+            t0 = time.time()
             if multi_scenario:
-                # Per-scenario agent generation with merged pool
-                (agent_defs_map, influence_outgoing, execution_order,
-                 agent_scenario_map, scenario_map) = _generate_per_scenario_agents(
+                result = _generate_per_scenario_agents(
                     scenarios, scenario, tm, task_id,
                 )
             else:
-                agent_defs_map, influence_outgoing, execution_order = generate_dynamic_agents(
+                defs, infl, order = generate_dynamic_agents(
                     monitor_name=subject,
                     keywords=[],
                     scenario=scenario,
                 )
-                # Single scenario: all agents belong to same scenario
+                sc_map = {0: scenarios[0]}
+                asc_map = {}
+                for key in defs:
+                    asc_map[key] = scenarios[0]
+                    defs[key]["scenario"] = scenarios[0]
+                    defs[key]["scenario_index"] = 0
+                result = (defs, infl, order, asc_map, sc_map)
+            logger.info(f"Agent generation took {time.time() - t0:.1f}s")
+            return result
+
+        def _do_data_fetching():
+            """Fetch scenario data + sentiment (LLM + API calls)."""
+            t0 = time.time()
+            local_data = {}
+            local_sentiment = {}
+            local_briefing = ""
+            for sc in scenarios:
+                try:
+                    sc_data = fetch_scenario_data(sc)
+                    local_data[sc] = sc_data
+                    sc_sentiment = analyze_scenario_sentiment(sc, sc_data)
+                    local_sentiment[sc] = sc_sentiment
+                    sc_briefing = build_scenario_briefing(sc, sc_data, sc_sentiment)
+                    local_briefing += sc_briefing + "\n\n"
+                    logger.info(f"Scenario data for '{sc[:40]}': sentiment={sc_sentiment.get('overall_sentiment', 0):.2f}")
+                except Exception as e:
+                    logger.warning(f"Scenario data fetch failed for '{sc[:40]}': {e}")
+            logger.info(f"Data fetching took {time.time() - t0:.1f}s")
+            return local_data, local_sentiment, local_briefing
+
+        # Run both in parallel with timeout
+        AGENT_GEN_TIMEOUT = 90  # seconds — fall back to static if too slow
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            agent_future = executor.submit(_do_agent_generation)
+            data_future = executor.submit(_do_data_fetching)
+
+            # Get agent results first (to push to frontend ASAP)
+            try:
+                agent_result = agent_future.result(timeout=AGENT_GEN_TIMEOUT)
+                if multi_scenario:
+                    (agent_defs_map, influence_outgoing, execution_order,
+                     agent_scenario_map, scenario_map) = agent_result
+                else:
+                    (agent_defs_map, influence_outgoing, execution_order,
+                     agent_scenario_map, scenario_map) = agent_result
+
+                influence_incoming_map = compute_influence_incoming(influence_outgoing)
+                logger.info(f"Dynamic agents: {list(agent_defs_map.keys())}")
+            except TimeoutError:
+                logger.warning(f"Agent generation timed out after {AGENT_GEN_TIMEOUT}s, using static agents")
+                agent_defs_map = dict(AGENT_DEFS)
+                influence_outgoing = None
+                influence_incoming_map = INFLUENCE_INCOMING
+                execution_order = list(AGENT_ORDER)
+                engine_version = "v3"
                 scenario_map = {0: scenarios[0]}
                 for key in agent_defs_map:
                     agent_scenario_map[key] = scenarios[0]
-                    agent_defs_map[key]["scenario"] = scenarios[0]
-                    agent_defs_map[key]["scenario_index"] = 0
+            except Exception as e:
+                logger.warning(f"Dynamic agent generation failed, falling back to static: {e}")
+                agent_defs_map = dict(AGENT_DEFS)
+                influence_outgoing = None
+                influence_incoming_map = INFLUENCE_INCOMING
+                execution_order = list(AGENT_ORDER)
+                engine_version = "v3"
+                scenario_map = {0: scenarios[0]}
+                for key in agent_defs_map:
+                    agent_scenario_map[key] = scenarios[0]
 
-            influence_incoming_map = compute_influence_incoming(influence_outgoing)
-            logger.info(
-                f"Dynamic agents generated: {list(agent_defs_map.keys())} "
-                f"(order: {execution_order})"
-            )
-        except Exception as e:
-            logger.warning(f"Dynamic agent generation failed, falling back to static: {e}")
-            agent_defs_map = dict(AGENT_DEFS)
-            influence_outgoing = None
-            influence_incoming_map = INFLUENCE_INCOMING
-            execution_order = list(AGENT_ORDER)
-            engine_version = "v3"
-            scenario_map = {0: scenarios[0]}
-            for key in agent_defs_map:
-                agent_scenario_map[key] = scenarios[0]
-
+        # Push agents to frontend immediately (don't wait for data fetch)
         agent_keys = get_agent_order(
             list(agent_defs_map.keys()),
             custom_order=execution_order,
         )
 
-        # Build frontend-facing agent metadata
         agent_defs_meta = {}
         for key in agent_keys:
             defn = agent_defs_map[key]
@@ -275,10 +330,8 @@ def _run_simulation(task_id: str, scenarios: List[str], scenario: str, config: D
                 meta["scenario_index"] = defn.get("scenario_index", 0)
             agent_defs_meta[key] = meta
 
-        # Track which agents were added in which round
         agent_timeline = [{"round": 0, "agents": list(agent_keys)}]
 
-        # Push agent info to progress_detail
         detail = _get_detail(tm, task_id)
         detail["personas"] = agent_keys
         detail["agent_defs"] = agent_defs_meta
@@ -288,40 +341,15 @@ def _run_simulation(task_id: str, scenarios: List[str], scenario: str, config: D
             detail["agent_scenario_map"] = agent_scenario_map
         tm.update_task(task_id, progress_detail=detail)
 
-        # Phase 0.5a: Scenario-based data fetching and sentiment analysis
-        tm.update_task(task_id, message="Fetching real-world data for scenarios...",
+        # Now wait for data fetching to finish (may already be done)
+        tm.update_task(task_id, message="Finishing data analysis...",
                        progress_detail=_update_detail(tm, task_id, phase="fetching_scenario_data"))
+        try:
+            all_scenario_data, all_sentiment, briefing = data_future.result()
+        except Exception as e:
+            logger.warning(f"Data fetching failed: {e}")
 
-        all_scenario_data = {}
-        all_sentiment = {}
-        briefing = ""
-
-        for sc in scenarios:
-            try:
-                tm.update_task(
-                    task_id,
-                    message=f"Fetching data for: {sc[:60]}...",
-                    progress_detail=_update_detail(tm, task_id, phase="fetching_scenario_data"),
-                )
-                sc_data = fetch_scenario_data(sc)
-                all_scenario_data[sc] = sc_data
-
-                tm.update_task(
-                    task_id,
-                    message=f"Analyzing sentiment for: {sc[:60]}...",
-                    progress_detail=_update_detail(tm, task_id, phase="analyzing_sentiment"),
-                )
-                sc_sentiment = analyze_scenario_sentiment(sc, sc_data)
-                all_sentiment[sc] = sc_sentiment
-
-                sc_briefing = build_scenario_briefing(sc, sc_data, sc_sentiment)
-                briefing += sc_briefing + "\n\n"
-
-                logger.info(f"Scenario data fetched for '{sc[:60]}': sentiment={sc_sentiment.get('overall_sentiment', 0):.2f}")
-            except Exception as e:
-                logger.warning(f"Scenario data fetch failed for '{sc[:60]}': {e}")
-
-        # Store sentiment data in progress detail for frontend
+        # Store sentiment in progress detail
         detail = _get_detail(tm, task_id)
         detail["scenario_sentiment"] = {
             sc: {
@@ -390,6 +418,7 @@ def _run_simulation(task_id: str, scenarios: List[str], scenario: str, config: D
 
         for round_num in range(1, total_rounds + 1):
             _check_cancelled(tm, task_id)
+            round_start = time.time()
 
             time_label = TIME_LABELS.get(round_num, f"Round {round_num}")
             progress_pct = int((round_num - 1) / (total_rounds + 1) * 100)
@@ -456,9 +485,9 @@ def _run_simulation(task_id: str, scenarios: List[str], scenario: str, config: D
                     pass
 
             logger.info(
-                f"Simulation {task_id}: Round {round_num}/{total_rounds} complete "
+                f"Round {round_num}/{total_rounds} complete in {time.time() - round_start:.1f}s "
                 f"(sentiment={round_metrics.get('avg_sentiment', 0):.2f}, "
-                f"volume={round_metrics.get('total_volume', 0)})"
+                f"volume={round_metrics.get('total_volume', 0)}, agents={len(agent_keys)})"
             )
 
             # --- Dynamic Agent Expansion (skip last round) ---
@@ -582,7 +611,7 @@ def _run_simulation(task_id: str, scenarios: List[str], scenario: str, config: D
             task_id, progress=90, message="Generating final analysis...",
             progress_detail=_update_detail(tm, task_id, phase="generating_summary"),
         )
-        client = ClaudeClient()
+        client = get_llm_client()
         aggregate_metrics = _generate_summary(
             client, all_rounds, scenario, subject, agent_keys,
             scenarios=scenarios if multi_scenario else None,
@@ -780,43 +809,20 @@ def _execute_round(
                 ) if agent_scenario_map else None,
             )
 
-            # Build per-agent tools (includes SimulationMemoryTool with current agent/round)
-            agent_tools = list(tools)
-            if graph_reader:
-                from .graph_tools import SimulationMemoryTool
-                agent_tools.append(SimulationMemoryTool(
-                    reader=graph_reader,
-                    agent_key=agent_key,
-                    current_round=round_num,
-                ))
-
-            agent = create_agent(
-                agent_key,
-                tools=agent_tools,
-                memory_dir=os.path.join(memory_dir, agent_key),
-                agent_def=defn,
+            # Direct LLM call (bypasses CrewAI overhead — much faster)
+            client = get_llm_client(temperature=0.7, max_tokens=1024)
+            system_prompt = (
+                f"You are {defn['name']}, a {defn['role']}.\n\n"
+                f"Backstory: {defn.get('backstory', '')}\n\n"
+                f"Goal: {defn.get('goal', '')}"
             )
-
-            task = Task(
-                description=task_prompt,
-                expected_output=(
-                    "JSON object with: action_type, title, content, "
-                    "sentiment_score, reach_estimate, reasoning, influenced_by"
-                ),
-                agent=agent,
+            raw_response = client.chat(
+                messages=[{"role": "user", "content": task_prompt}],
+                system=system_prompt,
+                temperature=0.7,
+                max_tokens=1024,
             )
-
-            crew = Crew(
-                agents=[agent],
-                tasks=[task],
-                process=Process.sequential,
-                verbose=False,
-                memory=True,
-                output_log_file=False,
-            )
-
-            result = crew.kickoff()
-            action = _parse_agent_response(str(result), agent_key, defn, agent_keys)
+            action = _parse_agent_response(raw_response, agent_key, defn, agent_keys)
 
             # Record action to graph memory
             if graph_writer:
@@ -859,7 +865,51 @@ def _execute_round(
             action["scenario"] = agent_scenario_map.get(agent_key, "")
         round_actions.append(action)
 
+        # Stream: push partial round to frontend immediately after each agent
+        _stream_partial_round(
+            tm, task_id, round_num, time_label, round_actions, round_influence,
+            agent_keys, agent_defs_map, cumulative_actions + [
+                a for a in round_actions if a.get('action_type') != 'no_action'
+            ],
+            agent_scenario_map,
+        )
+
     return round_actions, round_influence
+
+
+def _stream_partial_round(
+    tm, task_id, round_num, time_label, round_actions, round_influence,
+    agent_keys, agent_defs_map, all_actions_so_far, agent_scenario_map,
+):
+    """Push partial round data to progress_detail so frontend updates per-agent."""
+    detail = _get_detail(tm, task_id)
+    partial_metrics = _compute_round_metrics(
+        round_actions, all_actions_so_far, agent_keys, agent_defs_map,
+        agent_scenario_map=agent_scenario_map,
+    )
+
+    # Build or update the current round in the rounds list
+    current_round_data = {
+        "round_number": round_num,
+        "time_label": time_label,
+        "actions": list(round_actions),
+        "metrics": partial_metrics,
+    }
+
+    # Replace last round if same round_number, else append
+    rounds = detail.get("rounds", [])
+    if rounds and rounds[-1].get("round_number") == round_num:
+        rounds[-1] = current_round_data
+    else:
+        rounds.append(current_round_data)
+
+    detail["rounds"] = rounds
+    detail["current_round"] = round_num
+    detail["influence_log"] = detail.get("influence_log", []) + [
+        e for e in round_influence
+        if e not in detail.get("influence_log", [])
+    ]
+    tm.update_task(task_id, progress_detail=detail)
 
 
 TASK_PROMPT = """You are playing the role of {role} in a multi-agent scenario simulation about {brand}.

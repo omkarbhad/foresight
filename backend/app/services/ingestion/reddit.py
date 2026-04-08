@@ -11,8 +11,8 @@ logger = get_logger('foresight.ingestion.reddit')
 
 class RedditService:
     def __init__(self):
-        self.client_id = Config.REDDIT_CLIENT_ID
-        self.client_secret = Config.REDDIT_CLIENT_SECRET
+        self.client_id = Config.get("reddit_client_id")
+        self.client_secret = Config.get("reddit_client_secret")
         self.user_agent = Config.REDDIT_USER_AGENT
         self._reddit = None
 
@@ -33,7 +33,7 @@ class RedditService:
 
     def fetch_mentions(self, keywords, negative_keywords=None, since=None):
         if not self.client_id or not self.client_secret:
-            logger.warning("[Reddit] Credentials not configured — set REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET in .env")
+            logger.warning("[Reddit] Credentials not configured — set REDDIT_CLIENT_ID and REDDIT_CLIENT_SECRET via Settings")
             return []
 
         query = " OR ".join(keywords)

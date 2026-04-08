@@ -8,7 +8,7 @@ and returns a structured briefing with positive/negative breakdown.
 from typing import Dict, List
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from ..utils.claude_client import ClaudeClient
+from ..utils.llm_client import get_llm_client
 from ..utils.logger import get_logger
 from .ingestion import NewsAPIService, RedditService, TwitterService, FinnhubService
 
@@ -55,7 +55,7 @@ Produce a structured sentiment analysis as JSON:
 def extract_keywords(scenario: str) -> Dict:
     """Use Claude to extract search keywords from a scenario description."""
     try:
-        client = ClaudeClient()
+        client = get_llm_client()
         result = client.chat_json(
             messages=[{
                 "role": "user",
@@ -164,7 +164,7 @@ def analyze_scenario_sentiment(scenario: str, data: Dict) -> Dict:
         }
 
     try:
-        client = ClaudeClient()
+        client = get_llm_client()
         result = client.chat_json(
             messages=[{
                 "role": "user",

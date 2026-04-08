@@ -14,7 +14,7 @@ class TwitterService:
     BASE_URL = "https://api.twitter.com/2/tweets/search/recent"
 
     def __init__(self):
-        self.bearer_token = Config.TWITTER_BEARER_TOKEN
+        self.bearer_token = Config.get("twitter_bearer_token")
 
     @property
     def source_name(self):
@@ -22,7 +22,7 @@ class TwitterService:
 
     def fetch_mentions(self, keywords, negative_keywords=None, since=None):
         if not self.bearer_token:
-            logger.warning("[Twitter] Bearer token not configured — set TWITTER_BEARER_TOKEN in .env")
+            logger.warning("[Twitter] Bearer token not configured — set TWITTER_BEARER_TOKEN via Settings")
             return []
 
         query_parts = [f'"{kw}"' for kw in keywords]

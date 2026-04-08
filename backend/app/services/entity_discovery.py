@@ -10,7 +10,7 @@ import re
 from typing import Dict, List, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from ..utils.claude_client import ClaudeClient
+from ..utils.llm_client import get_llm_client
 from ..utils.logger import get_logger
 from .ingestion import NewsAPIService, RedditService, TwitterService, FinnhubService
 
@@ -104,7 +104,7 @@ def extract_emerging_entities(
     )
 
     try:
-        client = ClaudeClient()
+        client = get_llm_client()
         result = client.chat_json(
             messages=[{"role": "user", "content": prompt}],
             system="You are an expert geopolitical and media analyst. Return only the requested JSON.",
@@ -341,7 +341,7 @@ def _synthesize_briefing(entity_name: str, scenario: str, raw_summary: str) -> s
     if len(raw_summary) < 100:
         return raw_summary
 
-    client = ClaudeClient()
+    client = get_llm_client()
     prompt = SYNTHESIS_PROMPT.format(
         entity_name=entity_name,
         scenario=scenario,
