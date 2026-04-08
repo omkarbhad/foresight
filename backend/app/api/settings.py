@@ -62,6 +62,25 @@ def update_settings():
     return jsonify({"success": True, "updated": updated})
 
 
+@settings_bp.route('/test', methods=['POST'])
+def test_connection():
+    """Test if the configured LLM key works."""
+    from ..config import Config
+    if not Config.is_llm_configured():
+        return jsonify({"success": False, "error": "No LLM key configured"}), 400
+
+    try:
+        from ..utils.llm_client import get_llm_client
+        client = get_llm_client(max_tokens=10)
+        result = client.chat(
+            messages=[{"role": "user", "content": "Say hi"}],
+            max_tokens=10,
+        )
+        return jsonify({"success": True, "message": "Connection successful"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)[:200]}), 400
+
+
 @settings_bp.route('/status', methods=['GET'])
 def settings_status():
     from ..config import Config

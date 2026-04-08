@@ -41,7 +41,7 @@ def create_simulation():
 def list_simulations():
     limit = int(request.args.get('limit', 10))
     sims = Simulation.list_recent(limit=limit)
-    return jsonify({"success": True, "data": [s.to_dict() for s in sims]})
+    return jsonify({"success": True, "data": [s.to_dict(summary=True) for s in sims]})
 
 
 @simulations_bp.route('/<simulation_id>', methods=['GET'])

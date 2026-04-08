@@ -42,9 +42,15 @@ yarn-error.log*
 .coverage
 htmlcov/
 
-# Cursor
+# Editor / tools
 .cursor/
 .claude/
+.grepai/
+
+# Internal docs
+docs/specs/
+docs/plans/
+pnpm-lock.yaml
 
 # Logs
 backend/logs/

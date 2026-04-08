@@ -481,8 +481,8 @@ def _run_simulation(task_id: str, scenarios: List[str], scenario: str, config: D
             if graph_writer:
                 try:
                     graph_writer.update_round_metrics(round_num, round_metrics)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Graph round metrics update failed for round {round_num}: {e}")
 
             logger.info(
                 f"Round {round_num}/{total_rounds} complete in {time.time() - round_start:.1f}s "
@@ -626,8 +626,8 @@ def _run_simulation(task_id: str, scenarios: List[str], scenario: str, config: D
                     final_sentiment=aggregate_metrics.get("final_sentiment", 0.0),
                     peak_crisis=aggregate_metrics.get("peak_crisis_level", 0.0),
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Graph simulation metrics update failed: {e}")
 
         # Phase 5: Persist to DB and cleanup
         tm.update_task(
@@ -638,7 +638,7 @@ def _run_simulation(task_id: str, scenarios: List[str], scenario: str, config: D
         try:
             Simulation.create(
                 simulation_id=simulation_id,
-                monitor_id="",
+                monitor_id=None,
                 scenario=scenario,
                 config=config,
                 total_rounds=total_rounds,
@@ -675,8 +675,8 @@ def _run_simulation(task_id: str, scenarios: List[str], scenario: str, config: D
         try:
             if os.path.exists(memory_dir):
                 shutil.rmtree(memory_dir)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Memory dir cleanup failed for {memory_dir}: {e}")
 
         # Complete
         result = {
@@ -731,8 +731,8 @@ def _run_simulation(task_id: str, scenarios: List[str], scenario: str, config: D
         try:
             if os.path.exists(memory_dir):
                 shutil.rmtree(memory_dir)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Memory dir cleanup failed after cancellation: {e}")
 
     except Exception as e:
         logger.error(f"Simulation failed: {e}")
@@ -740,8 +740,8 @@ def _run_simulation(task_id: str, scenarios: List[str], scenario: str, config: D
         try:
             if os.path.exists(memory_dir):
                 shutil.rmtree(memory_dir)
-        except Exception:
-            pass
+        except Exception as cleanup_err:
+            logger.debug(f"Memory dir cleanup failed after error: {cleanup_err}")
 
 
 def _execute_round(
@@ -822,6 +822,7 @@ def _execute_round(
                 temperature=0.7,
                 max_tokens=1024,
             )
+            _check_cancelled(tm, task_id)
             action = _parse_agent_response(raw_response, agent_key, defn, agent_keys)
 
             # Record action to graph memory
@@ -912,39 +913,33 @@ def _stream_partial_round(
     tm.update_task(task_id, progress_detail=detail)
 
 
-TASK_PROMPT = """You are playing the role of {role} in a multi-agent scenario simulation about {brand}.
+TASK_PROMPT = """You are {role}. Stay in character.
 
 SCENARIO: {scenario}
 {primary_scenario_section}
-CURRENT TIME: {time_label} (Round {round_num} of {total_rounds})
+TIME: {time_label} (Round {round_num}/{total_rounds})
 
 {influence_section}
 
 {history_section}
 
-CURRENT AGGREGATE METRICS:
-- Overall sentiment: {current_sentiment}
-- Total media volume: {current_volume} pieces
+Sentiment: {current_sentiment} | Volume: {current_volume}
 {per_scenario_metrics}
 
-You have access to a media_landscape tool with real-world data about this scenario.
-Use it if you need context about the subject's recent media history.
+Pick one action from: {action_types}
+Use "no_action" to stay silent.
 
-Based on the scenario, the current time period, what has happened so far, and the actions
-of agents that influence you, decide your next action.
+WRITING STYLE: Write like a real person in your role would. If you're a journalist, write a punchy headline and a sharp lede. If you're on social media, write like an actual post — short, opinionated, maybe a hashtag. If you're an official, write a brief formal statement. NO corporate speak. NO "in light of recent developments". Be specific and direct.
 
-Choose one action_type from: {action_types}
-(Choose "no_action" if it's strategically better to stay silent this round.)
-
-Respond with ONLY this JSON (no other text):
+Respond ONLY with this JSON:
 {{
-    "action_type": "one of your available types",
-    "title": "headline or title of your action (max 100 chars)",
-    "content": "2-3 sentence description of what you publish/post/say",
-    "sentiment_score": float from -1.0 (very negative toward the subject) to 1.0 (very positive),
-    "reach_estimate": integer estimated audience reach,
-    "reasoning": "1 sentence explaining why you chose this action now",
-    "influenced_by": ["list of exact agent_key identifiers (snake_case) whose actions influenced your decision, or empty"]
+    "action_type": "one of your types",
+    "title": "short punchy headline (max 80 chars)",
+    "content": "What you actually say/publish. 1-2 sentences max. Be specific, not vague.",
+    "sentiment_score": float -1.0 to 1.0,
+    "reach_estimate": integer,
+    "reasoning": "Why this action now, in 10 words or less",
+    "influenced_by": ["agent_keys that influenced you, or empty"]
 }}"""
 
 

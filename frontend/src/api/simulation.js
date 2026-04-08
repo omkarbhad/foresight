@@ -26,3 +26,6 @@ export const getSettings = () =>
 
 export const updateSettings = (settings) =>
   service.put('/api/settings', settings)
+
+export const testLlmConnection = () =>
+  service.post('/api/settings/test')

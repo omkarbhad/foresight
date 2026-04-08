@@ -26,23 +26,25 @@ class Simulation:
     historical_briefing: Optional[str] = None
     engine_version: str = "v1"
 
-    def to_dict(self):
-        return {
+    def to_dict(self, summary=False):
+        d = {
             "simulation_id": self.simulation_id,
             "monitor_id": self.monitor_id,
             "scenario": self.scenario,
             "config": self.config,
             "status": self.status,
             "total_rounds": self.total_rounds,
-            "rounds": self.rounds,
             "aggregate_metrics": self.aggregate_metrics,
             "created_at": self.created_at,
             "completed_at": self.completed_at,
-            "agent_states": self.agent_states,
-            "influence_log": self.influence_log,
-            "historical_briefing": self.historical_briefing,
             "engine_version": self.engine_version,
         }
+        if not summary:
+            d["rounds"] = self.rounds
+            d["agent_states"] = self.agent_states
+            d["influence_log"] = self.influence_log
+            d["historical_briefing"] = self.historical_briefing
+        return d
 
     @classmethod
     def from_row(cls, row):
@@ -61,13 +63,13 @@ class Simulation:
 
         return cls(
             simulation_id=row['simulation_id'],
-            monitor_id=row['monitor_id'],
+            monitor_id=row.get('monitor_id') or "",
             scenario=row['scenario'],
             config=_parse_json(row['config'], {}),
             status=row['status'],
             total_rounds=row['total_rounds'],
-            rounds=_parse_json(row['rounds'], []),
-            aggregate_metrics=_parse_json(row['aggregate_metrics'], {}),
+            rounds=_parse_json(row.get('rounds'), []),
+            aggregate_metrics=_parse_json(row.get('aggregate_metrics'), {}),
             created_at=row['created_at'].isoformat() if row.get('created_at') else None,
             completed_at=row['completed_at'].isoformat() if row.get('completed_at') else None,
             agent_states=_parse_json(row.get('agent_states'), {}),
@@ -111,7 +113,9 @@ class Simulation:
     @classmethod
     def list_recent(cls, limit=10):
         rows = execute_query(
-            "SELECT * FROM simulations ORDER BY created_at DESC LIMIT %s",
+            """SELECT simulation_id, scenario, config, status, total_rounds,
+                      aggregate_metrics, created_at, completed_at, engine_version
+               FROM simulations ORDER BY created_at DESC LIMIT %s""",
             (limit,)
         )
         return [cls.from_row(r) for r in (rows or [])]
