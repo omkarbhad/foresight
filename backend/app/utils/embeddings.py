@@ -21,7 +21,7 @@ def generate_embedding(text: str, model: Optional[str] = None) -> List[float]:
     Returns list of floats (1024-dim for voyage-3-lite).
     Falls back to zero-vector if API unavailable.
     """
-    api_key = Config.EMBEDDING_API_KEY or Config.CLAUDE_API_KEY
+    api_key = Config.EMBEDDING_API_KEY or Config.get("llm_api_key")
     model = model or Config.EMBEDDING_MODEL
 
     if not api_key:

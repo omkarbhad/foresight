@@ -12,11 +12,9 @@ from app.config import Config
 def main():
     errors = Config.validate()
     if errors:
-        print("Configuration errors:")
         for err in errors:
-            print(f"  - {err}")
-        print("\nPlease check your .env file")
-        sys.exit(1)
+            print(f"  Warning: {err}")
+        print("  Configure API keys via Settings in the UI or .env file\n")
 
     app = create_app()
 

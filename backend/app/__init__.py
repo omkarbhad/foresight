@@ -41,13 +41,14 @@ def create_app(config_class=Config):
         return response
 
     # Register blueprints
-    from .api import monitors_bp, mentions_bp, analysis_bp, digests_bp, tasks_bp, simulations_bp
+    from .api import monitors_bp, mentions_bp, analysis_bp, digests_bp, tasks_bp, simulations_bp, settings_bp
     app.register_blueprint(monitors_bp, url_prefix='/api/monitors')
     app.register_blueprint(mentions_bp, url_prefix='/api/mentions')
     app.register_blueprint(analysis_bp, url_prefix='/api/analysis')
     app.register_blueprint(digests_bp, url_prefix='/api/digests')
     app.register_blueprint(tasks_bp, url_prefix='/api/tasks')
     app.register_blueprint(simulations_bp, url_prefix='/api/simulations')
+    app.register_blueprint(settings_bp, url_prefix='/api/settings')
 
     # Initialize Neo4j graph schema (if enabled)
     if Config.GRAPH_MEMORY_ENABLED and should_log_startup:

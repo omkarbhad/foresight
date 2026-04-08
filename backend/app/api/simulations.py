@@ -2,12 +2,20 @@
 
 from flask import request, jsonify
 from . import simulations_bp
+from ..config import Config
 from ..models.simulation import Simulation
 from ..services.crewai_engine import start_simulation
 
 
 @simulations_bp.route('', methods=['POST'])
 def create_simulation():
+    # Check LLM is configured before starting
+    if not Config.is_llm_configured():
+        return jsonify({
+            "success": False,
+            "error": "No LLM provider configured. Open Settings to add an API key.",
+        }), 400
+
     data = request.get_json()
     if not data:
         return jsonify({"success": False, "error": "Request body required"}), 400
