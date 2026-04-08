@@ -1,15 +1,14 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import SimulationView from '../views/SimulationView.vue'
+import SimulationCanvas from '../views/SimulationCanvas.vue'
 
 const routes = [
-  { path: '/', name: 'Simulation', component: SimulationView },
-  { path: '/simulation', redirect: '/' },
-  { path: '/whatif', redirect: '/' },
+  { path: '/', name: 'Canvas', component: SimulationCanvas },
+  { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 
 const router = createRouter({
   history: createWebHistory(),
-  routes
+  routes,
 })
 
 export default router

@@ -16,3 +16,13 @@ export const getTaskStatus = (taskId) =>
 
 export const cancelTask = (taskId) =>
   service.post(`/api/tasks/${taskId}/cancel`)
+
+// Settings API
+export const getSettingsStatus = () =>
+  service.get('/api/settings/status')
+
+export const getSettings = () =>
+  service.get('/api/settings')
+
+export const updateSettings = (settings) =>
+  service.put('/api/settings', settings)
