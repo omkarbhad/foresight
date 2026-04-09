@@ -9,8 +9,6 @@ Thumbs.db
 .env.development
 .env.test
 .env.production
-.env.example
-
 # Python
 __pycache__/
 *.py[cod]

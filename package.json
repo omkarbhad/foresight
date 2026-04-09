@@ -1,7 +1,7 @@
 {
   "name": "foresight",
   "version": "0.1.0",
-  "description": "Foresight - PR & Media Monitoring Platform",
+  "description": "AI multi-agent scenario simulator — describe any event and watch AI agents react in real-time",
   "scripts": {
     "setup": "npm install && cd frontend && npm install",
     "setup:backend": "cd backend && python3 -m venv venv && venv/bin/pip install flask flask-cors anthropic psycopg2-binary apscheduler praw tweepy requests beautifulsoup4 python-dotenv pydantic",
