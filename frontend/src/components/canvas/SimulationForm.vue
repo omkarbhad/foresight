@@ -1,12 +1,5 @@
 <template>
   <div v-if="visible" class="form-wrapper">
-    <!-- Gradient blobs background -->
-    <div class="glow-bg" aria-hidden="true">
-      <div class="blob blob-1"></div>
-      <div class="blob blob-2"></div>
-      <div class="blob blob-3"></div>
-    </div>
-
     <div class="form-center">
       <h1 class="heading">What scenario do you<br>want to simulate?</h1>
       <p class="subtext">Describe an event and watch AI agents react in real-time</p>
@@ -132,48 +125,6 @@ function handleSubmit() {
   overflow: hidden;
 }
 
-/* Gradient blobs from inspiration */
-.glow-bg {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-}
-.blob {
-  position: absolute;
-  border-radius: 50%;
-  mix-blend-mode: normal;
-  filter: blur(128px);
-  animation: pulse 8s ease-in-out infinite;
-}
-.blob-1 {
-  top: 10%;
-  left: 25%;
-  width: 384px;
-  height: 384px;
-  background: rgba(139, 92, 246, 0.08);
-}
-.blob-2 {
-  bottom: 10%;
-  right: 25%;
-  width: 384px;
-  height: 384px;
-  background: rgba(99, 102, 241, 0.08);
-  animation-delay: 2s;
-}
-.blob-3 {
-  top: 25%;
-  right: 33%;
-  width: 256px;
-  height: 256px;
-  background: rgba(232, 121, 249, 0.06);
-  animation-delay: 4s;
-}
-@keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.6; transform: scale(1.1); }
-}
-
 .form-center {
   max-width: 640px;
   width: 100%;
@@ -186,20 +137,20 @@ function handleSubmit() {
   font-weight: 500;
   color: var(--text-primary);
   text-align: center;
-  line-height: 1.3;
-  letter-spacing: -0.02em;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
 }
 .subtext {
   font-size: 13px;
   color: var(--text-muted);
   text-align: center;
-  margin-top: 8px;
-  margin-bottom: 32px;
+  margin-top: 6px;
+  margin-bottom: 24px;
 }
 .input-card {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
   overflow: hidden;
 }
 .tags-row {
@@ -207,7 +158,7 @@ function handleSubmit() {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 .tag {
   display: inline-flex;
@@ -250,7 +201,7 @@ function handleSubmit() {
 
 .input-footer {
   padding: 10px 12px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid rgba(255,255,255,0.06);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -309,10 +260,9 @@ function handleSubmit() {
   font-weight: 500;
   cursor: pointer;
   transition: all 150ms;
-  box-shadow: 0 0 12px rgba(255,255,255,0.06);
 }
 .btn-run:hover:not(:disabled) {
-  box-shadow: 0 0 20px rgba(255,255,255,0.1);
+  opacity: 0.85;
 }
 .btn-run:disabled {
   background: var(--btn-inactive-bg);
@@ -329,8 +279,8 @@ function handleSubmit() {
   margin-top: 16px;
 }
 .preset-chip {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
   border-radius: 8px;
   padding: 6px 14px;
   font-size: 12px;

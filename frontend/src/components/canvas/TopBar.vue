@@ -1,18 +1,11 @@
 <template>
-  <header class="topbar">
-    <div class="topbar-left">
-      <span class="logo" @click="$emit('reset')">Foresight</span>
+  <header class="topbar" :class="{ seamless: !scenario }">
+    <div class="topbar-left" @click="$emit('reset')">
+      <ForesightLogo :size="18" />
+      <span class="logo">Foresight</span>
     </div>
 
-    <div v-if="phase" class="topbar-center">
-      <span class="sc">{{ scenario?.length > 45 ? scenario.slice(0, 43) + '...' : scenario }}</span>
-      <span class="dot">&middot;</span>
-      <span class="rd">{{ currentRound }}/{{ totalRounds }}</span>
-      <span class="dot">&middot;</span>
-      <span v-if="running" class="ph">{{ phaseLabel }}</span>
-      <span v-else-if="phase === 'completed'" class="done">Done</span>
-      <span v-else-if="phase === 'cancelled'" class="warn">Cancelled</span>
-    </div>
+    <span v-if="scenario" class="topbar-scenario">{{ scenario.length > 50 ? scenario.slice(0, 48) + '...' : scenario }}</span>
 
     <div class="topbar-right">
       <button v-if="running && !cancelling" class="btn-stop" @click="$emit('cancel')">Stop</button>
@@ -31,6 +24,7 @@
 <script setup>
 import { computed } from 'vue'
 import { Settings as SettingsIcon, Clock as ClockIcon } from 'lucide-vue-next'
+import ForesightLogo from './ForesightLogo.vue'
 
 const props = defineProps({
   showNewSim: { type: Boolean, default: false },
@@ -68,32 +62,36 @@ const phaseLabel = computed(() => phaseLabels[props.phase] || props.phase || '')
   justify-content: space-between;
   padding: 0 12px;
   background: #0a0a0b;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
   z-index: 100;
+  transition: background 150ms, border-color 150ms;
 }
-.topbar-left { flex-shrink: 0; }
+.topbar.seamless {
+  background: transparent;
+  border-bottom-color: transparent;
+}
+.topbar-left {
+  flex-shrink: 0;
+  display: flex; align-items: center; gap: 7px;
+  cursor: pointer; user-select: none;
+}
+.topbar-left:hover .logo { color: rgba(255,255,255,0.8); }
+.topbar-left:hover :deep(.foresight-logo) { opacity: 1; }
 .logo {
   font-weight: 500; font-size: 13px;
   color: rgba(255,255,255,0.5);
-  cursor: pointer; user-select: none;
-  letter-spacing: -0.01em;
-  transition: color 150ms ease;
+  letter-spacing: -0.02em;
+  transition: color 150ms;
 }
-.logo:hover {
-  color: rgba(255,255,255,0.8);
+.topbar-scenario {
+  font-size: 12px;
+  color: rgba(255,255,255,0.4);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
-.topbar-center {
-  display: flex; align-items: center; gap: 6px;
-  font-size: 12px; color: var(--text-secondary);
-  min-width: 0; overflow: hidden;
-}
-.sc { color: var(--text-primary); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dot { color: var(--text-muted); }
-.rd { color: var(--text-primary); font-size: 11px; flex-shrink: 0; }
-.ph { color: var(--text-muted); flex-shrink: 0; }
-.done { color: var(--success); flex-shrink: 0; }
-.warn { color: var(--warning); flex-shrink: 0; }
-
 .topbar-right { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
 .btn-icon {
   display: flex; align-items: center; justify-content: center;

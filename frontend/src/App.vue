@@ -7,15 +7,15 @@
 
 :root {
   --bg-base: #0a0a0b;
-  --bg-surface: rgba(255,255,255,0.02);
-  --bg-card: rgba(255,255,255,0.03);
-  --bg-hover: rgba(255,255,255,0.05);
-  --border: rgba(255,255,255,0.05);
-  --border-strong: rgba(255,255,255,0.1);
-  --text-primary: rgba(255,255,255,0.9);
+  --bg-surface: rgba(255,255,255,0.03);
+  --bg-card: rgba(255,255,255,0.04);
+  --bg-hover: rgba(255,255,255,0.06);
+  --border: rgba(255,255,255,0.07);
+  --border-strong: rgba(255,255,255,0.12);
+  --text-primary: rgba(255,255,255,0.92);
   --text-secondary: rgba(255,255,255,0.7);
   --text-muted: rgba(255,255,255,0.4);
-  --text-placeholder: rgba(255,255,255,0.2);
+  --text-placeholder: rgba(255,255,255,0.25);
   --accent: #8b5cf6;
   --accent-hover: #a78bfa;
   --accent-ring: rgba(139,92,246,0.3);
@@ -31,6 +31,8 @@
 #app {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
   color: var(--text-primary);
   background: #0a0a0b;
   min-height: 100vh;

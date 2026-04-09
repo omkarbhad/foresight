@@ -42,6 +42,7 @@
       :currentRound="currentRound"
       :scenarioMap="scenarioMap"
       :agentScenarioMap="agentScenarioMap"
+      :resultsOpen="state === 'results' && resultsView === 'sidebar'"
     />
 
     <!-- Running + Results: action feed -->
@@ -56,14 +57,17 @@
     <MetricsBar
       v-if="state === 'running' || state === 'results'"
       :visible="state === 'running' || state === 'results'"
+      :scenario="currentScenario"
+      :status="state === 'results' ? 'done' : (phase === 'cancelled' ? 'cancelled' : 'running')"
       :currentRound="currentRound"
       :totalRounds="totalRounds"
-      :metrics="latestMetrics"
+      :metrics="state === 'results' ? (resultData?.aggregate_metrics || computedAggregateMetrics) : latestMetrics"
       :agentCount="Object.keys(agentDefs).length"
       :linkCount="influenceLog.length"
       :currentAgentName="currentAgent ? (agentDefs[currentAgent]?.name || currentAgent) : ''"
       :currentAgentColor="agentDefs[currentAgent]?.color || ''"
       :phase="phase"
+      :resultsOpen="state === 'results' && resultsView === 'sidebar'"
     />
 
     <!-- Results: full-page results view -->
@@ -74,6 +78,7 @@
       :totalRounds="resultData?.total_rounds || totalRounds"
       :agentDefs="agentDefs"
       :rounds="rounds"
+      :influenceLog="influenceLog"
       @toggle-view="resultsView = resultsView === 'sidebar' ? 'fullpage' : 'sidebar'"
     />
 
@@ -84,22 +89,21 @@
       <button class="btn-retry" @click="resetToIdle">Try Again</button>
     </div>
 
-    <!-- History panel (simple dropdown) -->
+    <!-- History dropdown -->
     <div v-if="showHistory && (state === 'idle' || state === 'results')" class="history-panel">
-      <h3>Recent Simulations</h3>
       <div v-if="history.length === 0" class="history-empty">No past simulations</div>
       <div v-for="sim in history" :key="sim.simulation_id" class="history-item" @click="loadSimulation(sim)">
-        <span class="hist-scenario">{{ sim.scenario?.slice(0, 80) }}{{ sim.scenario?.length > 80 ? '...' : '' }}</span>
-        <div class="hist-details">
-          <span class="hist-meta">{{ Object.keys(sim.agent_states?._agent_defs || {}).length }} agents &middot; {{ sim.total_rounds }} rounds</span>
+        <div class="hist-row">
+          <span class="hist-scenario">{{ sim.scenario?.slice(0, 60) }}{{ sim.scenario?.length > 60 ? '...' : '' }}</span>
           <span
             v-if="sim.aggregate_metrics?.final_sentiment != null"
             class="hist-sentiment"
             :style="{ color: sim.aggregate_metrics.final_sentiment >= 0 ? 'var(--success)' : 'var(--danger)' }"
           >{{ sim.aggregate_metrics.final_sentiment >= 0 ? '+' : '' }}{{ sim.aggregate_metrics.final_sentiment.toFixed(2) }}</span>
-          <span v-if="sim.engine_version" class="hist-engine">{{ sim.engine_version }}</span>
         </div>
-        <span class="hist-date">{{ sim.created_at?.slice(0, 10) }}</span>
+        <div class="hist-meta">
+          {{ sim.total_rounds }} rounds<span v-if="sim.created_at"> · {{ sim.created_at.slice(0, 10) }}</span>
+        </div>
       </div>
     </div>
   </div>
@@ -380,9 +384,9 @@ async function poll() {
   filter: blur(128px);
   animation: bpulse 8s ease-in-out infinite;
 }
-.blob-1 { top: 10%; left: 20%; width: 400px; height: 400px; background: rgba(139,92,246,0.07); }
-.blob-2 { bottom: 10%; right: 20%; width: 400px; height: 400px; background: rgba(99,102,241,0.07); animation-delay: 2s; }
-.blob-3 { top: 30%; right: 30%; width: 300px; height: 300px; background: rgba(232,121,249,0.05); animation-delay: 4s; }
+.blob-1 { top: 10%; left: 20%; width: 420px; height: 420px; background: rgba(139,92,246,0.12); }
+.blob-2 { bottom: 10%; right: 20%; width: 420px; height: 420px; background: rgba(99,102,241,0.12); animation-delay: 2s; }
+.blob-3 { top: 30%; right: 30%; width: 300px; height: 300px; background: rgba(232,121,249,0.08); animation-delay: 4s; }
 @keyframes bpulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.5; transform: scale(1.15); }
@@ -417,33 +421,57 @@ async function poll() {
 
 .history-panel {
   position: fixed;
-  top: 56px;
-  right: 16px;
-  width: 360px;
-  max-height: 60vh;
-  background: rgba(0,0,0,0.8);
-  backdrop-filter: blur(12px);
+  top: 48px;
+  right: 8px;
+  width: 320px;
+  max-height: 400px;
+  background: #0a0a0b;
   border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 16px;
-  padding: 16px;
+  border-radius: 8px;
+  padding: 4px;
   overflow-y: auto;
-  z-index: 90;
+  z-index: 110;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
 }
-.history-panel h3 { font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 12px; }
-.history-empty { color: var(--text-muted); font-size: 13px; }
+.history-empty {
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 24px 10px;
+  text-align: center;
+}
 .history-item {
-  padding: 10px;
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 10px;
-  margin-bottom: 6px;
+  padding: 8px 10px;
+  border-radius: 6px;
   cursor: pointer;
-  transition: border-color 0.15s;
+  transition: background 150ms;
 }
-.history-item:hover { border-color: rgba(255,255,255,0.1); }
-.hist-scenario { display: block; font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.9); margin-bottom: 6px; }
-.hist-details { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
-.hist-meta { font-size: 11px; color: rgba(255,255,255,0.25); }
-.hist-sentiment { font-size: 12px; font-weight: 600; }
-.hist-engine { font-size: 10px; color: var(--text-muted); background: var(--bg-base); padding: 1px 6px; border-radius: 3px; }
-.hist-date { font-size: 11px; color: var(--text-muted); }
+.history-item:hover { background: rgba(255,255,255,0.04); }
+.history-item + .history-item { border-top: 1px solid rgba(255,255,255,0.03); }
+.hist-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.hist-scenario {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.7);
+  line-height: 1.4;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.hist-sentiment {
+  font-size: 11px;
+  font-weight: 500;
+  flex-shrink: 0;
+  letter-spacing: -0.01em;
+}
+.hist-meta {
+  font-size: 10px;
+  color: rgba(255,255,255,0.2);
+  margin-top: 2px;
+}
 </style>

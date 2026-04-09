@@ -115,15 +115,6 @@ function initGraph() {
 
   svg = d3.select(el).append('svg').attr('width', w).attr('height', h)
 
-  const zoomBehavior = d3.zoom()
-    .scaleExtent([0.3, 3])
-    .on('zoom', (event) => {
-      linkGroup.attr('transform', event.transform)
-      nodeGroup.attr('transform', event.transform)
-      labelGroup.attr('transform', event.transform)
-    })
-  svg.call(zoomBehavior)
-
   const defs = svg.append('defs')
 
   // Arrow markers — slim open chevron style
@@ -153,15 +144,15 @@ function initGraph() {
   labelGroup = svg.append('g')
 
   simulation = d3.forceSimulation()
-    .force('link', d3.forceLink().id(d => d.id).distance(80))
-    .force('charge', d3.forceManyBody().strength(-200))
+    .force('link', d3.forceLink().id(d => d.id).distance(95))
+    .force('charge', d3.forceManyBody().strength(-300))
     .force('center', d3.forceCenter(w / 2, h / 2))
-    .force('collision', d3.forceCollide(20))
+    .force('collision', d3.forceCollide(28))
     .on('tick', () => {
       const w2 = el.clientWidth || 600, h2 = el.clientHeight || 500
       nodeGroup.selectAll('g.node').each(d => {
-        d.x = Math.max(30, Math.min(w2 - 30, d.x))
-        d.y = Math.max(30, Math.min(h2 - 30, d.y))
+        d.x = Math.max(60, Math.min(w2 - 60, d.x))
+        d.y = Math.max(40, Math.min(h2 - 40, d.y))
         nodePositions.set(d.id, { x: d.x, y: d.y, vx: d.vx, vy: d.vy })
       })
       linkGroup.selectAll('path').attr('d', d => {
@@ -182,6 +173,10 @@ function updateGraph() {
   const links = computeLinks()
   const el = graphEl.value
   const w = el?.clientWidth || 600, h = el?.clientHeight || 500
+
+  // Update SVG size and recenter forces
+  svg.attr('width', w).attr('height', h)
+  simulation.force('center', d3.forceCenter(w / 2, h / 2))
 
   for (const n of nodes) {
     if (n.x == null) {
@@ -347,6 +342,7 @@ onUnmounted(() => {
 
 watch([() => props.agentDefs, () => props.influenceLog], () => { nextTick(updateGraph) }, { deep: true })
 watch(filterMode, () => { nextTick(updateGraph) })
+watch(() => props.resultsOpen, () => { setTimeout(updateGraph, 200) })
 </script>
 
 <style scoped>
@@ -354,8 +350,8 @@ watch(filterMode, () => { nextTick(updateGraph) })
   position: fixed;
   top: 44px;
   left: 0;
-  right: 320px;
-  bottom: 28px;
+  right: 340px;
+  bottom: 0;
   z-index: 10;
   background: transparent;
   opacity: 0;
@@ -363,7 +359,7 @@ watch(filterMode, () => { nextTick(updateGraph) })
   pointer-events: none;
 }
 .graph-wrapper.visible { opacity: 1; pointer-events: all; }
-.graph-wrapper.results-shifted { left: 340px; }
+.graph-wrapper.results-shifted { left: 380px; }
 .graph-controls {
   position: absolute;
   top: 12px;
@@ -389,17 +385,16 @@ watch(filterMode, () => { nextTick(updateGraph) })
   position: absolute;
   z-index: 20;
   pointer-events: none;
-  background: rgba(0,0,0,0.8);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 10px;
-  backdrop-filter: blur(8px);
+  background: #0c0c0d;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
   padding: 8px 10px;
-  max-width: 220px;
+  max-width: 200px;
 }
-.tooltip-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
-.tooltip-role { font-size: 11px; color: var(--text-secondary); }
-.tooltip-stat { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
-.tooltip-sentiment { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.tooltip-name { font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.8); letter-spacing: -0.01em; }
+.tooltip-role { font-size: 11px; color: rgba(255,255,255,0.4); margin-top: 1px; }
+.tooltip-stat { font-size: 11px; color: rgba(255,255,255,0.25); margin-top: 4px; }
+.tooltip-sentiment { font-size: 11px; color: rgba(255,255,255,0.25); margin-top: 2px; }
 .graph-container { width: 100%; height: 100%; background: transparent; }
 .graph-container :deep(svg) { display: block; }
 </style>

@@ -15,25 +15,98 @@
           </button>
         </div>
       </div>
-      <div class="pills-row">
-        <span class="pill" :class="sentimentClass(agg.final_sentiment)">
-          {{ (agg.final_sentiment || 0) >= 0 ? '+' : '' }}{{ (agg.final_sentiment || 0).toFixed(2) }}
-        </span>
-        <span class="pill muted">{{ agg.total_volume || 0 }} actions</span>
-        <span class="pill muted">{{ Object.keys(agentDefs).length }} agents</span>
-        <span class="pill muted">{{ totalRounds }}R</span>
+
+      <!-- Stat row -->
+      <div class="stat-row">
+        <div class="stat" :class="sentimentClass(agg.final_sentiment)">
+          <span class="stat-val">{{ (agg.final_sentiment || 0) >= 0 ? '+' : '' }}{{ (agg.final_sentiment || 0).toFixed(2) }}</span>
+          <span class="stat-label">sentiment</span>
+        </div>
+        <div class="stat">
+          <span class="stat-val">{{ agg.total_volume || 0 }}</span>
+          <span class="stat-label">actions</span>
+        </div>
+        <div class="stat">
+          <span class="stat-val">{{ Object.keys(agentDefs).length }}</span>
+          <span class="stat-label">agents</span>
+        </div>
+        <div class="stat">
+          <span class="stat-val">{{ totalRounds }}</span>
+          <span class="stat-label">rounds</span>
+        </div>
       </div>
-      <div v-if="agg.sentiment_trajectory?.length" class="spark-strip">
-        <svg :viewBox="`0 0 ${sparkW} 20`" preserveAspectRatio="none" class="spark-svg">
-          <polyline :points="sparkPoints" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linejoin="round"/>
-        </svg>
+
+      <!-- Tabs -->
+      <div class="tab-row">
+        <button v-for="tab in tabs" :key="tab.key" class="tab" :class="{ active: activeTab === tab.key }" @click="activeTab = tab.key">
+          {{ tab.label }}
+        </button>
       </div>
+
       <div class="sidebar-scroll">
-        <template v-for="section in sections" :key="section.key">
-          <div v-if="section.items.length" class="section">
-            <h4 class="sec-title">{{ section.label }}</h4>
-            <component :is="section.component" v-bind="section.props" />
+
+        <!-- TAB: Points (Key Findings + Recommended Actions) -->
+        <template v-if="activeTab === 'points'">
+          <div v-if="summaryPoints.length" class="section">
+            <ul class="point-list">
+              <li v-for="(p, i) in summaryPoints" :key="i" class="pt">
+                <span class="pt-dot" :class="p.type"></span>
+                <span class="pt-text">{{ p.text }}</span>
+              </li>
+            </ul>
           </div>
+          <div v-if="agg.recommended_actions?.length" class="section">
+            <h4 class="sec-title">Recommended Actions</h4>
+            <ul class="point-list">
+              <li v-for="(a, i) in agg.recommended_actions" :key="i" class="pt">
+                <span class="pt-num">{{ i + 1 }}</span>
+                <span class="pt-text">{{ a }}</span>
+              </li>
+            </ul>
+          </div>
+        </template>
+
+        <!-- TAB: Chains (per-round timeline) -->
+        <template v-if="activeTab === 'chains'">
+          <div class="round-timeline">
+            <div v-for="round in roundSummaries" :key="round.num" class="rt-row">
+              <div class="rt-rail">
+                <span class="rt-dot" :class="sentimentClass(round.sentiment)"></span>
+                <span v-if="round.num < totalRounds" class="rt-line"></span>
+              </div>
+              <div class="rt-body">
+                <div class="rt-head">
+                  <span class="rt-round">Round {{ round.num }}</span>
+                  <span class="rt-time">{{ round.timeLabel }}</span>
+                  <span class="rt-sentiment pill sm" :class="sentimentClass(round.sentiment)">{{ round.sentiment >= 0 ? '+' : '' }}{{ round.sentiment.toFixed(2) }}</span>
+                </div>
+                <p v-if="round.headline" class="rt-headline">{{ round.headline }}</p>
+                <div class="rt-agents">
+                  <span v-for="agent in round.topAgents" :key="agent.key" class="rt-agent">
+                    <span class="rt-agent-dot" :style="{ background: agent.color }"></span>
+                    {{ agent.name }}
+                  </span>
+                  <span v-if="round.moreCount > 0" class="rt-more">+{{ round.moreCount }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- TAB: Timeline (turning points) -->
+        <template v-if="activeTab === 'timeline'">
+          <div v-if="parsedTurningPoints.length" class="section">
+            <ul class="point-list">
+              <li v-for="(tp, i) in parsedTurningPoints" :key="i" class="pt">
+                <span class="pt-dot timeline"></span>
+                <div>
+                  <span v-if="tp.label" class="tp-label">{{ tp.label }}</span>
+                  <span class="pt-text">{{ tp.text }}</span>
+                </div>
+              </li>
+            </ul>
+          </div>
+          <div v-else class="empty-state">No turning points detected</div>
         </template>
       </div>
     </div>
@@ -42,21 +115,21 @@
     <div v-if="view === 'fullpage'" class="fullpage">
       <div class="fp-header">
         <div class="fp-metrics">
-          <div class="fp-metric">
-            <span class="fp-label">Sentiment</span>
-            <span class="fp-val" :class="sentimentClass(agg.final_sentiment)">{{ (agg.final_sentiment || 0) >= 0 ? '+' : '' }}{{ (agg.final_sentiment || 0).toFixed(2) }}</span>
+          <div class="fp-metric" :class="sentimentClass(agg.final_sentiment)">
+            <span class="fp-val">{{ (agg.final_sentiment || 0) >= 0 ? '+' : '' }}{{ (agg.final_sentiment || 0).toFixed(2) }}</span>
+            <span class="fp-label">sentiment</span>
           </div>
           <div class="fp-metric">
-            <span class="fp-label">Actions</span>
             <span class="fp-val">{{ agg.total_volume || 0 }}</span>
+            <span class="fp-label">actions</span>
           </div>
           <div class="fp-metric">
-            <span class="fp-label">Rounds</span>
             <span class="fp-val">{{ totalRounds }}</span>
+            <span class="fp-label">rounds</span>
           </div>
           <div class="fp-metric">
-            <span class="fp-label">Agents</span>
             <span class="fp-val">{{ Object.keys(agentDefs).length }}</span>
+            <span class="fp-label">agents</span>
           </div>
           <div v-if="agg.sentiment_trajectory?.length" class="fp-spark">
             <svg :viewBox="`0 0 ${sparkW} 24`" preserveAspectRatio="none" class="spark-svg">
@@ -75,49 +148,60 @@
         </div>
       </div>
       <div class="fp-body">
+        <!-- Left: points + actions -->
         <div class="fp-left">
           <div v-if="summaryPoints.length" class="section">
-            <h4 class="sec-title">Key Findings</h4>
-            <div v-for="(p, i) in summaryPoints" :key="i" class="finding">
-              <span class="dot" :class="p.type"></span>
-              <span>{{ p.text }}</span>
-            </div>
+            <h4 class="sec-title">Key Points</h4>
+            <ul class="point-list">
+              <li v-for="(p, i) in summaryPoints" :key="i" class="pt">
+                <span class="pt-dot" :class="p.type"></span>
+                <span class="pt-text">{{ p.text }}</span>
+              </li>
+            </ul>
           </div>
           <div v-if="parsedTurningPoints.length" class="section">
-            <h4 class="sec-title">Timeline</h4>
-            <div v-for="(tp, i) in parsedTurningPoints" :key="i" class="tl-row">
-              <span v-if="tp.label" class="tl-label">{{ tp.label }}</span>
-              <p class="tl-text">{{ tp.text }}</p>
-            </div>
+            <h4 class="sec-title">Turning Points</h4>
+            <ul class="point-list">
+              <li v-for="(tp, i) in parsedTurningPoints" :key="i" class="pt">
+                <span class="pt-dot timeline"></span>
+                <div>
+                  <span v-if="tp.label" class="tp-label">{{ tp.label }}</span>
+                  <span class="pt-text">{{ tp.text }}</span>
+                </div>
+              </li>
+            </ul>
           </div>
           <div v-if="agg.recommended_actions?.length" class="section">
             <h4 class="sec-title">Recommended Actions</h4>
-            <div v-for="(a, i) in agg.recommended_actions" :key="i" class="action-row">
-              <span class="action-num">{{ i + 1 }}.</span>
-              <span>{{ a }}</span>
-            </div>
+            <ul class="point-list">
+              <li v-for="(a, i) in agg.recommended_actions" :key="i" class="pt">
+                <span class="pt-num">{{ i + 1 }}</span>
+                <span class="pt-text">{{ a }}</span>
+              </li>
+            </ul>
           </div>
         </div>
+
+        <!-- Right: full round-by-round chain detail -->
         <div class="fp-right">
-          <h4 class="sec-title">Round Breakdown</h4>
-          <div v-for="round in rounds" :key="round.round_number" class="round-block">
-            <div class="round-head">
-              <span class="rn">R{{ round.round_number }}</span>
-              <span class="rt">{{ round.time_label }}</span>
-              <span v-if="round.metrics" class="rs" :class="sentimentClass(round.metrics.avg_sentiment)">{{ (round.metrics.avg_sentiment || 0).toFixed(2) }}</span>
-            </div>
-            <div v-for="(a, j) in activeActions(round)" :key="j" class="mini-card">
-              <div class="mc-row">
-                <span class="mc-dot" :style="{ background: agentDefs[a.persona]?.color || '#666' }"></span>
-                <span class="mc-name">{{ agentDefs[a.persona]?.name || a.persona }}</span>
-                <span class="mc-type">{{ a.action_type?.replace(/_/g, ' ') }}</span>
+          <h4 class="sec-title">Round-by-Round</h4>
+          <div class="fp-rounds">
+            <div v-for="round in roundSummaries" :key="round.num" class="fp-round">
+              <div class="fpr-head">
+                <span class="fpr-num">R{{ round.num }}</span>
+                <span class="fpr-time">{{ round.timeLabel }}</span>
+                <span class="pill sm" :class="sentimentClass(round.sentiment)">{{ round.sentiment >= 0 ? '+' : '' }}{{ round.sentiment.toFixed(2) }}</span>
+                <span class="fpr-count">{{ round.actionCount }} actions</span>
               </div>
-              <p class="mc-title">{{ a.title }}</p>
-              <p class="mc-body">{{ a.content }}</p>
-              <div class="mc-pills">
-                <span class="pill sm" :class="sentimentClass(a.sentiment_score)">{{ sentimentLabel(a.sentiment_score) }}</span>
-                <span v-if="a.reach_estimate" class="pill sm muted">{{ formatReach(a.reach_estimate) }}</span>
+              <p v-if="round.headline" class="fpr-headline">{{ round.headline }}</p>
+              <!-- Top 4 actions as compact rows -->
+              <div v-for="action in round.actions.slice(0, 4)" :key="action.persona" class="fpr-action">
+                <span class="fpr-dot" :style="{ background: action.color }"></span>
+                <span class="fpr-name">{{ action.name }}</span>
+                <span class="fpr-title">{{ action.title }}</span>
+                <span class="pill sm" :class="sentimentClass(action.sentiment)">{{ action.sentimentLabel }}</span>
               </div>
+              <div v-if="round.actions.length > 4" class="fpr-more">+{{ round.actions.length - 4 }} more actions</div>
             </div>
           </div>
         </div>
@@ -127,7 +211,7 @@
 </template>
 
 <script setup>
-import { computed, ref, defineComponent, h } from 'vue'
+import { computed, ref } from 'vue'
 
 const props = defineProps({
   visible: Boolean,
@@ -136,11 +220,13 @@ const props = defineProps({
   totalRounds: { type: Number, default: 6 },
   agentDefs: { type: Object, default: () => ({}) },
   rounds: { type: Array, default: () => [] },
+  influenceLog: { type: Array, default: () => [] },
 })
 const emit = defineEmits(['toggle-view'])
 
 const agg = computed(() => props.aggregateMetrics || {})
 const sidebarWidth = ref(380)
+const activeTab = ref('points')
 
 function startResize(e) {
   const startX = e.clientX, startW = sidebarWidth.value
@@ -152,20 +238,12 @@ function startResize(e) {
 
 function sentimentClass(v) { return v > 0.2 ? 'pos' : v < -0.2 ? 'neg' : 'neu' }
 function sentimentLabel(v) {
-  if (v > 0.5) return 'Very positive'
+  if (v > 0.5) return 'Very +ve'
   if (v > 0.2) return 'Positive'
-  if (v < -0.5) return 'Very negative'
+  if (v < -0.5) return 'Very -ve'
   if (v < -0.2) return 'Negative'
   return 'Neutral'
 }
-function formatReach(n) {
-  if (!n) return ''
-  if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B'
-  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M'
-  if (n >= 1e3) return (n / 1e3).toFixed(0) + 'K'
-  return String(n)
-}
-function activeActions(round) { return (round.actions || []).filter(a => a.action_type !== 'no_action') }
 
 function exportResults() {
   const data = { metrics: agg.value, agents: Object.keys(props.agentDefs).length, rounds: props.rounds, exported_at: new Date().toISOString() }
@@ -178,6 +256,7 @@ function exportResults() {
   URL.revokeObjectURL(url)
 }
 
+// Key findings as bullet points
 const summaryPoints = computed(() => {
   const text = agg.value.narrative_summary || ''
   if (!text) return []
@@ -204,46 +283,47 @@ const parsedTurningPoints = computed(() => (agg.value.key_turning_points || []).
   return { label: '', text: tp }
 }))
 
-// Sidebar sections (rendered inline via v-for)
-const FindingsList = defineComponent({
-  props: ['items'],
-  render() { return this.items.map((p, i) => h('div', { class: 'finding', key: i }, [h('span', { class: ['dot', p.type] }), h('span', null, p.text)])) }
-})
-const TimelineList = defineComponent({
-  props: ['items'],
-  render() { return this.items.map((tp, i) => h('div', { class: 'tl-row', key: i }, [tp.label ? h('span', { class: 'tl-label' }, tp.label) : null, h('p', { class: 'tl-text' }, tp.text)])) }
-})
-const ActionsList = defineComponent({
-  props: ['items'],
-  render() { return this.items.map((a, i) => h('div', { class: 'action-row', key: i }, [h('span', { class: 'action-num' }, `${i+1}.`), h('span', null, a)])) }
-})
-const RoundsList = defineComponent({
-  props: ['items', 'agentDefs'],
-  setup(props2) {
-    return () => props2.items.map(round => {
-      const active = (round.actions || []).filter(a => a.action_type !== 'no_action')
-      return h('div', { class: 'round-block', key: round.round_number }, [
-        h('div', { class: 'round-head' }, [
-          h('span', { class: 'rn' }, `R${round.round_number}`),
-          h('span', { class: 'rt' }, round.time_label),
-          h('span', { class: 'rs' }, `${active.length} actions`),
-        ]),
-        ...active.slice(0, 3).map((a, j) => h('div', { class: 'mini-action', key: j }, [
-          h('span', { class: 'ma-dot', style: { background: props2.agentDefs[a.persona]?.color || '#666' } }),
-          h('span', { class: 'ma-name' }, props2.agentDefs[a.persona]?.name || a.persona),
-          h('span', { class: 'ma-title' }, a.title),
-        ])),
-        active.length > 3 ? h('div', { class: 'ma-more' }, `+${active.length - 3} more`) : null,
-      ])
-    })
-  }
+// Per-round summaries for the chain/timeline view
+const roundSummaries = computed(() => {
+  const defs = props.agentDefs || {}
+  return (props.rounds || []).map(round => {
+    const rn = round.round_number
+    const active = (round.actions || []).filter(a => a.action_type !== 'no_action')
+    const sentiment = round.metrics?.avg_sentiment || 0
+    const maxAgents = 3
+    const topAgents = active.slice(0, maxAgents).map(a => ({
+      key: a.persona,
+      name: defs[a.persona]?.name || a.persona?.replace(/_/g, ' '),
+      color: defs[a.persona]?.color || '#666',
+    }))
+    // Pick the most impactful action title as headline
+    const sorted = [...active].sort((a, b) => Math.abs(b.sentiment_score || 0) - Math.abs(a.sentiment_score || 0))
+    const headline = sorted[0]?.title || ''
+    return {
+      num: rn,
+      timeLabel: round.time_label || '',
+      sentiment,
+      headline,
+      actionCount: active.length,
+      topAgents,
+      moreCount: Math.max(0, active.length - maxAgents),
+      actions: active.map(a => ({
+        persona: a.persona,
+        name: defs[a.persona]?.name || a.persona?.replace(/_/g, ' '),
+        color: defs[a.persona]?.color || '#666',
+        title: a.title || '',
+        sentiment: a.sentiment_score || 0,
+        sentimentLabel: sentimentLabel(a.sentiment_score || 0),
+        actionType: a.action_type?.replace(/_/g, ' ') || '',
+      })),
+    }
+  })
 })
 
-const sections = computed(() => [
-  { key: 'findings', label: 'Key Findings', items: summaryPoints.value, component: FindingsList, props: { items: summaryPoints.value } },
-  { key: 'timeline', label: 'Timeline', items: parsedTurningPoints.value, component: TimelineList, props: { items: parsedTurningPoints.value } },
-  { key: 'actions', label: 'Recommended Actions', items: agg.value.recommended_actions || [], component: ActionsList, props: { items: agg.value.recommended_actions || [] } },
-  { key: 'rounds', label: 'Round Breakdown', items: props.rounds, component: RoundsList, props: { items: props.rounds, agentDefs: props.agentDefs } },
+const tabs = computed(() => [
+  { key: 'points', label: 'Summary' },
+  { key: 'chains', label: 'Rounds' },
+  { key: 'timeline', label: 'Events' },
 ])
 
 const sparkW = computed(() => Math.max((agg.value.sentiment_trajectory?.length || 1) * 40, 80))
@@ -253,23 +333,18 @@ function mkPoints(data, h2) {
   const arr = data.map((v, i) => ({ x: i * step, y: h2 - ((v + 1) / 2) * (h2 - 4) - 2 }))
   return { str: arr.map(p => `${p.x},${p.y}`).join(' '), arr }
 }
-const sparkPoints = computed(() => mkPoints(agg.value.sentiment_trajectory, 20).str)
 const sparkPointsLg = computed(() => mkPoints(agg.value.sentiment_trajectory, 24).str)
 const sparkArrLg = computed(() => mkPoints(agg.value.sentiment_trajectory, 24).arr)
 </script>
 
 <style scoped>
-/* SIDEBAR VIEW */
+/* SIDEBAR */
 .sidebar {
   position: fixed;
-  top: 44px; left: 0; bottom: 30px;
+  top: 44px; left: 0; bottom: 0;
   z-index: 40;
   background: #0c0c0d;
-  border-right: 1px solid rgba(255,255,255,0.06);
-  border-left: none;
-  border-top: none;
-  border-bottom: none;
-  border-radius: 0;
+  border-right: 1px solid rgba(255,255,255,0.08);
   display: flex; flex-direction: column;
   overflow: hidden;
 }
@@ -277,7 +352,6 @@ const sparkArrLg = computed(() => mkPoints(agg.value.sentiment_trajectory, 24).a
   position: absolute; top: 0; right: -3px; bottom: 0;
   width: 6px; cursor: col-resize; z-index: 10;
 }
-.resize-handle:hover { background: transparent; }
 
 .panel-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -285,7 +359,7 @@ const sparkArrLg = computed(() => mkPoints(agg.value.sentiment_trajectory, 24).a
   border-bottom: 1px solid rgba(255,255,255,0.06);
   flex-shrink: 0;
 }
-.panel-title { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.8); }
+.panel-title { font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.8); letter-spacing: -0.02em; }
 .header-actions { display: flex; gap: 4px; }
 .icon-btn {
   width: 28px; height: 28px;
@@ -296,30 +370,142 @@ const sparkArrLg = computed(() => mkPoints(agg.value.sentiment_trajectory, 24).a
 }
 .icon-btn:hover { color: rgba(255,255,255,0.6); border-color: rgba(255,255,255,0.12); }
 
-.pills-row {
-  display: flex; gap: 5px; padding: 8px 12px; flex-wrap: wrap;
-  border-bottom: 1px solid rgba(255,255,255,0.06); flex-shrink: 0;
+/* Stats */
+.stat-row {
+  display: flex; padding: 8px 12px; gap: 2px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
 }
-.pill {
-  font-size: 10px; padding: 2px 7px; border-radius: 5px; font-weight: 500;
+.stat {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 4px 0;
 }
-.pill.sm { font-size: 9px; padding: 1px 6px; }
-.pill.pos { background: rgba(34,197,94,0.1); color: rgba(34,197,94,0.8); }
-.pill.neg { background: rgba(239,68,68,0.1); color: rgba(239,68,68,0.8); }
-.pill.neu { background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.35); }
-.pill.muted { background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.25); }
+.stat-val { font-size: 15px; font-weight: 500; color: rgba(255,255,255,0.7); letter-spacing: -0.02em; }
+.stat-label { font-size: 10px; color: rgba(255,255,255,0.3); }
+.stat.pos .stat-val { color: rgba(34,197,94,0.9); }
+.stat.neg .stat-val { color: rgba(239,68,68,0.9); }
 
-.spark-strip {
-  padding: 6px 12px; border-bottom: 1px solid rgba(255,255,255,0.06); flex-shrink: 0;
+/* Tabs */
+.tab-row {
+  display: flex; padding: 0 12px; gap: 0;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  flex-shrink: 0;
 }
-.spark-svg { width: 100%; height: 20px; display: block; }
+.tab {
+  flex: 1; padding: 9px 0;
+  font-size: 11px; font-weight: 500;
+  color: rgba(255,255,255,0.25);
+  background: none; border: none;
+  cursor: pointer; transition: color 150ms;
+  text-align: center;
+  letter-spacing: -0.01em;
+  position: relative;
+}
+.tab:hover { color: rgba(255,255,255,0.45); }
+.tab.active { color: rgba(255,255,255,0.75); }
+.tab.active::after {
+  content: '';
+  position: absolute; bottom: 0; left: 20%; right: 20%;
+  height: 1px; background: rgba(255,255,255,0.3);
+}
 
 .sidebar-scroll { flex: 1; overflow-y: auto; padding: 10px 12px; }
 
-/* FULL PAGE VIEW */
+/* SHARED */
+.section { margin-bottom: 14px; }
+.sec-title {
+  font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.3);
+  margin-bottom: 6px;
+}
+.pill { font-size: 10px; padding: 2px 7px; border-radius: 5px; font-weight: 500; }
+.pill.sm { font-size: 9px; padding: 1px 5px; }
+.pill.pos { background: rgba(34,197,94,0.1); color: rgba(34,197,94,0.8); }
+.pill.neg { background: rgba(239,68,68,0.1); color: rgba(239,68,68,0.8); }
+.pill.neu { background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.3); }
+
+/* Point list */
+.point-list { list-style: none; margin: 0; padding: 0; }
+.pt {
+  display: flex; gap: 8px; align-items: flex-start;
+  padding: 5px 0;
+}
+.pt + .pt { border-top: 1px solid rgba(255,255,255,0.05); }
+.pt-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: rgba(255,255,255,0.12); flex-shrink: 0; margin-top: 6px;
+}
+.pt-dot.positive { background: rgba(34,197,94,0.7); }
+.pt-dot.negative { background: rgba(239,68,68,0.7); }
+.pt-dot.timeline { background: var(--accent); opacity: 0.5; }
+.pt-text { font-size: 12px; line-height: 1.5; color: rgba(255,255,255,0.55); }
+.pt-num {
+  width: 16px; height: 16px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; font-weight: 700;
+  color: rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.04);
+  border-radius: 3px; flex-shrink: 0; margin-top: 3px;
+}
+.tp-label {
+  font-size: 10px; color: var(--accent); opacity: 0.5;
+  display: block; margin-bottom: 1px;
+}
+
+.empty-state {
+  text-align: center; padding: 24px 0;
+  font-size: 12px; color: rgba(255,255,255,0.15);
+}
+
+/* Round timeline (chains tab) */
+.round-timeline { padding: 0; }
+.rt-row {
+  display: flex; gap: 10px;
+}
+.rt-rail {
+  display: flex; flex-direction: column; align-items: center;
+  width: 12px; flex-shrink: 0; padding-top: 2px;
+}
+.rt-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: rgba(255,255,255,0.12); flex-shrink: 0;
+}
+.rt-dot.pos { background: rgba(34,197,94,0.6); }
+.rt-dot.neg { background: rgba(239,68,68,0.6); }
+.rt-line {
+  width: 1px; flex: 1; min-height: 16px;
+  background: rgba(255,255,255,0.06);
+}
+.rt-body {
+  flex: 1; padding-bottom: 12px; min-width: 0;
+}
+.rt-head {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 3px;
+}
+.rt-round { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.5); }
+.rt-time { font-size: 10px; color: rgba(255,255,255,0.5); }
+.rt-sentiment { margin-left: auto; }
+.rt-headline {
+  font-size: 12px; line-height: 1.4; color: rgba(255,255,255,0.4);
+  margin: 0 0 4px;
+}
+.rt-agents {
+  display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
+}
+.rt-agent {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 10px; color: rgba(255,255,255,0.3);
+}
+.rt-agent-dot {
+  width: 4px; height: 4px; border-radius: 50%; flex-shrink: 0;
+}
+.rt-more {
+  font-size: 9px; color: rgba(255,255,255,0.15);
+}
+
+/* FULL PAGE */
 .fullpage {
-  position: fixed; top: 44px; left: 0; right: 0; bottom: 0;
-  z-index: 40;
+  position: fixed; top: 44px; left: 0; right: 0; bottom: 30px;
+  z-index: 150;
   background: #0a0a0b;
   display: flex; flex-direction: column;
   overflow: hidden;
@@ -331,12 +517,12 @@ const sparkArrLg = computed(() => mkPoints(agg.value.sentiment_trajectory, 24).a
   flex-shrink: 0;
 }
 .fp-metrics { display: flex; align-items: center; gap: 24px; }
-.fp-metric { display: flex; flex-direction: column; gap: 2px; }
+.fp-metric { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+.fp-val { font-size: 18px; font-weight: 500; color: rgba(255,255,255,0.8); letter-spacing: -0.02em; }
+.fp-metric.pos .fp-val { color: rgba(34,197,94,0.9); }
+.fp-metric.neg .fp-val { color: rgba(239,68,68,0.9); }
 .fp-label { font-size: 10px; color: rgba(255,255,255,0.25); }
-.fp-val { font-size: 16px; font-weight: 600; color: rgba(255,255,255,0.8); }
-.fp-val.pos { color: var(--success); }
-.fp-val.neg { color: var(--danger); }
-.fp-spark { margin-left: auto; width: 100px; height: 24px; }
+.fp-spark { margin-left: auto; width: 120px; height: 24px; }
 .fp-actions { display: flex; gap: 4px; }
 
 .fp-body {
@@ -347,73 +533,39 @@ const sparkArrLg = computed(() => mkPoints(agg.value.sentiment_trajectory, 24).a
   border-right: 1px solid rgba(255,255,255,0.06);
 }
 .fp-right {
-  width: 440px; flex-shrink: 0; overflow-y: auto; padding: 20px 20px;
+  width: 480px; flex-shrink: 0; overflow-y: auto; padding: 16px 20px;
 }
 
-/* SHARED STYLES */
-.section { margin-bottom: 16px; }
-.sec-title {
-  font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.35);
-  margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.03em;
-}
-
-.finding {
-  display: flex; gap: 10px; align-items: flex-start;
-  margin-bottom: 10px;
-  padding: 8px 10px;
+/* Full page rounds */
+.fp-rounds { display: flex; flex-direction: column; gap: 2px; }
+.fp-round {
+  padding: 10px 12px;
   background: rgba(255,255,255,0.015);
   border: 1px solid rgba(255,255,255,0.03);
   border-radius: 8px;
 }
-.dot {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: rgba(255,255,255,0.15); flex-shrink: 0; margin-top: 5px;
+.fpr-head {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 4px;
 }
-.dot.positive { background: var(--success); }
-.dot.negative { background: var(--danger); }
-.finding span:last-child { font-size: 12px; line-height: 1.6; color: rgba(255,255,255,0.5); }
-
-.tl-row { margin-bottom: 8px; }
-.tl-label { font-size: 10px; color: var(--accent); opacity: 0.6; display: block; margin-bottom: 2px; }
-.tl-text { font-size: 12px; line-height: 1.5; color: rgba(255,255,255,0.4); margin: 0; }
-
-.action-row { display: flex; gap: 6px; margin-bottom: 4px; font-size: 12px; line-height: 1.5; color: rgba(255,255,255,0.4); }
-.action-num { color: rgba(255,255,255,0.2); flex-shrink: 0; }
-
-.round-block { margin-bottom: 14px; }
-.round-head {
-  display: flex; align-items: center; gap: 8px;
-  padding-bottom: 4px; margin-bottom: 4px;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
+.fpr-num {
+  font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.5);
+  background: rgba(255,255,255,0.04);
+  padding: 1px 5px; border-radius: 3px;
 }
-.rn { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.5); }
-.rt { font-size: 10px; color: rgba(255,255,255,0.2); }
-.rs { font-size: 10px; color: rgba(255,255,255,0.2); margin-left: auto; }
-.rs.pos { color: var(--success); }
-.rs.neg { color: var(--danger); }
-
-/* Mini cards in full page */
-.mini-card {
-  padding: 10px 12px; margin-bottom: 6px;
-  background: rgba(255,255,255,0.02);
-  border: 1px solid rgba(255,255,255,0.05);
-  border-radius: 10px;
+.fpr-time { font-size: 10px; color: rgba(255,255,255,0.5); }
+.fpr-count { font-size: 10px; color: rgba(255,255,255,0.15); margin-left: auto; }
+.fpr-headline {
+  font-size: 12px; line-height: 1.4; color: rgba(255,255,255,0.4);
+  margin: 0 0 6px;
 }
-.mc-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
-.mc-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-.mc-name { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.6); }
-.mc-type { font-size: 10px; color: rgba(255,255,255,0.2); margin-left: auto; text-transform: capitalize; }
-.mc-title { font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.75); margin: 0 0 2px; line-height: 1.3; }
-.mc-body { font-size: 11px; color: rgba(255,255,255,0.3); line-height: 1.4; margin: 0; max-height: 40px; overflow: hidden; }
-.mc-pills { display: flex; gap: 5px; margin-top: 6px; }
-
-/* Mini actions in sidebar */
-.mini-action {
-  display: flex; align-items: center; gap: 5px;
-  padding: 2px 0; font-size: 11px;
+.fpr-action {
+  display: flex; align-items: center; gap: 6px;
+  padding: 3px 0;
+  font-size: 11px;
 }
-.ma-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
-.ma-name { color: rgba(255,255,255,0.45); font-weight: 500; flex-shrink: 0; }
-.ma-title { color: rgba(255,255,255,0.25); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ma-more { font-size: 10px; color: rgba(255,255,255,0.15); padding-left: 10px; }
+.fpr-action + .fpr-action { border-top: 1px solid rgba(255,255,255,0.05); }
+.fpr-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+.fpr-name { color: rgba(255,255,255,0.45); font-weight: 500; flex-shrink: 0; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fpr-title { color: rgba(255,255,255,0.25); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fpr-more { font-size: 10px; color: rgba(255,255,255,0.12); padding: 4px 0 0; }
 </style>

@@ -1,26 +1,22 @@
 <template>
   <div v-if="action.action_type !== 'no_action'" class="card">
     <div class="card-top">
-      <div class="agent-row">
-        <span class="agent-dot" :style="{ background: agentColor }"></span>
-        <span class="agent-name">{{ personaLabel }}</span>
-      </div>
-      <span class="action-badge">{{ action.action_type.replace(/_/g, ' ') }}</span>
+      <span class="agent-dot" :style="{ background: agentColor }"></span>
+      <span class="agent-name">{{ personaLabel }}</span>
+      <span class="action-type">{{ action.action_type.replace(/_/g, ' ') }}</span>
     </div>
 
-    <p class="headline">{{ action.title }}</p>
+    <p class="title">{{ action.title }}</p>
 
     <p class="body" :class="{ expanded }">{{ action.content }}</p>
     <button v-if="action.content?.length > 120" class="more" @click="expanded = !expanded">
       {{ expanded ? 'Less' : 'More' }}
     </button>
 
-    <div class="card-meta">
-      <span class="pill" :class="sentimentClass">{{ sentimentLabel }}</span>
-      <span v-if="action.reach_estimate" class="pill muted">{{ formatReach(action.reach_estimate) }}</span>
-      <span v-if="action.influenced_by?.length" class="pill violet">
-        {{ action.influenced_by.length }} {{ action.influenced_by.length === 1 ? 'influence' : 'influences' }}
-      </span>
+    <div class="card-footer">
+      <span class="sentiment" :class="sentimentClass">{{ sentimentLabel }}</span>
+      <span v-if="action.reach_estimate" class="meta">{{ formatReach(action.reach_estimate) }} reach</span>
+      <span v-if="action.influenced_by?.length" class="meta">{{ action.influenced_by.length }} {{ action.influenced_by.length === 1 ? 'influence' : 'influences' }}</span>
     </div>
   </div>
 </template>
@@ -59,71 +55,62 @@ const sentimentLabel = computed(() => {
 
 function formatReach(n) {
   if (!n || n <= 0) return ''
-  if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B reach'
-  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M reach'
-  if (n >= 1e3) return (n / 1e3).toFixed(0) + 'K reach'
-  return n + ' reach'
+  if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B'
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M'
+  if (n >= 1e3) return (n / 1e3).toFixed(0) + 'K'
+  return String(n)
 }
 </script>
 
 <style scoped>
 .card {
-  padding: 12px 14px;
-  background: rgba(255,255,255,0.02);
-  border: 1px solid rgba(255,255,255,0.05);
-  border-radius: 14px;
-  transition: border-color 200ms, background 200ms;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
 }
-.card:hover {
-  background: rgba(255,255,255,0.04);
-  border-color: rgba(255,255,255,0.1);
-}
+.card:last-child { border-bottom: none; }
 
 .card-top {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
-}
-.agent-row {
-  display: flex;
   align-items: center;
   gap: 6px;
-  min-width: 0;
+  margin-bottom: 4px;
 }
 .agent-dot {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 .agent-name {
   font-size: 12px;
-  font-weight: 600;
-  color: rgba(255,255,255,0.8);
+  font-weight: 500;
+  color: rgba(255,255,255,0.7);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  letter-spacing: -0.01em;
 }
-.action-badge {
+.action-type {
   font-size: 10px;
-  color: rgba(255,255,255,0.25);
+  color: rgba(255,255,255,0.2);
   text-transform: capitalize;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
-.headline {
+.title {
   font-size: 13px;
   font-weight: 500;
   color: rgba(255,255,255,0.85);
   line-height: 1.4;
-  margin: 0 0 4px;
+  margin: 0 0 3px;
+  letter-spacing: -0.01em;
 }
 .body {
   font-size: 12px;
   color: rgba(255,255,255,0.4);
   line-height: 1.5;
-  max-height: 38px;
+  max-height: 36px;
   overflow: hidden;
   margin: 0;
 }
@@ -133,30 +120,23 @@ function formatReach(n) {
   border: none;
   padding: 0;
   font-size: 11px;
-  color: var(--accent);
+  color: rgba(255,255,255,0.3);
   cursor: pointer;
   margin-top: 2px;
-  opacity: 0.6;
-  transition: opacity 150ms;
+  transition: color 150ms;
 }
-.more:hover { opacity: 1; }
+.more:hover { color: rgba(255,255,255,0.6); }
 
-.card-meta {
+.card-footer {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-top: 8px;
-  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 11px;
 }
-.pill {
-  font-size: 10px;
-  padding: 2px 8px;
-  border-radius: 6px;
-  font-weight: 500;
-}
-.pill.pos { background: rgba(34,197,94,0.1); color: rgba(34,197,94,0.8); }
-.pill.neg { background: rgba(239,68,68,0.1); color: rgba(239,68,68,0.8); }
-.pill.neu { background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.3); }
-.pill.muted { background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.3); }
-.pill.violet { background: rgba(139,92,246,0.1); color: rgba(139,92,246,0.7); }
+.sentiment { font-weight: 500; }
+.sentiment.pos { color: rgba(34,197,94,0.7); }
+.sentiment.neg { color: rgba(239,68,68,0.7); }
+.sentiment.neu { color: rgba(255,255,255,0.2); }
+.meta { color: rgba(255,255,255,0.2); }
 </style>
